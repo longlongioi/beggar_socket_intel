@@ -81,7 +81,6 @@ namespace ChisFlashBurner
 
         int mbc_BaseAddressOfBank(int mbcType, int bank)
         {
-
             switch (mbcType)
             {
                 //case 1:
@@ -162,24 +161,42 @@ namespace ChisFlashBurner
             }
         }
 
-        void mbc5_romEraseSector(int addrFrom, int addrTo, int sectorSize)
+        void mbc5_romEraseSector(int addrFrom, int addrTo)
         {
             int mbcType = mbcTypeSelected();
-
-            int sectorMask = sectorSize - 1;
-            addrTo &= ~sectorMask;
+            int[] sectorInfo = mbc5_sectorInfo();
 
             printLog(string.Format("擦除 0x{0:x8} - 0x{1:x8}", addrFrom, addrTo));
 
-            for (int sa = addrTo; sa >= addrFrom; sa -= sectorSize)
+            // 获取区间
+            int sectorStart = -1;
+            int sectorEnd = -1;
+
+            for (int i = 0; i < sectorInfo.Length; i++)
             {
+                if (sectorInfo[i] <= addrFrom)
+                    sectorStart = i;
+                if (sectorInfo[i] >= addrTo)
+                    break;
+                else
+                    sectorEnd = i;
+            }
+
+            // 开始擦
+            int sectorCount = sectorEnd - sectorStart + 1;
+
+            for (int i = sectorCount; i > 0; i--)
+            {
+                int sa = sectorInfo[sectorStart + i - 1];
+
                 printLog(string.Format("    0x{0:x8}", sa));
+                showProgress(i, sectorCount);
 
                 int bank = sa >> 14;
-
                 mbc_romSwitchBank(mbcType, bank);
 
                 int _sa = mbc_BaseAddressOfBank(mbcType, bank);
+                _sa += (sa & 0x3fff);
 
                 gbcCart_write(0xaaa, new byte[] { 0xaa });
                 gbcCart_write(0x555, new byte[] { 0x55 });
@@ -187,8 +204,6 @@ namespace ChisFlashBurner
                 gbcCart_write(0xaaa, new byte[] { 0xaa });
                 gbcCart_write(0x555, new byte[] { 0x55 });
                 gbcCart_write((UInt32)_sa, new byte[] { 0x30 });   // Sector Erase
-
-                showProgress((sa - addrFrom) / sectorSize + 1, (addrTo - addrFrom) / sectorSize + 1);
 
                 byte[] temp = new byte[1];
                 do
@@ -223,7 +238,8 @@ namespace ChisFlashBurner
             return id;
         }
 
-        void mbc5_romGetSize(out int sectorCount, out int sectorSize, out int bufferWriteBytes, out int deviceSize)
+
+        void mbc5_romGetSize(out int bufferWriteBytes, out int deviceSize)
         {
             byte[] cfi = new byte[1];
             int temp;
@@ -243,46 +259,91 @@ namespace ChisFlashBurner
             else
                 bufferWriteBytes = (int)Math.Pow(2, cfi[0]);
 
-            gbcCart_read(0x60, ref cfi);
-            temp = cfi[0] << 8;
-            gbcCart_read(0x5e, ref cfi);
-            temp |= cfi[0];
-            sectorSize = temp * 256;
+            // reset
+            gbcCart_write(0x00, new byte[] { 0xf0 });
+        }
 
-            gbcCart_read(0x58, ref cfi);
-            int blockRegionCount = cfi[0];
 
-            sectorCount = 0;
-            for (int i = 0; i < blockRegionCount; i++)
-            {
-                gbcCart_read((UInt32)(0x5c + 8 * i), ref cfi);
-                temp = cfi[0] << 8;
-                gbcCart_read((UInt32)(0x5a + 8 * i), ref cfi);
-                temp |= cfi[0];
-                sectorCount += temp + 1;
-            }
+        int[] mbc5_sectorInfo()
+        {
+            byte[] cfi0 = new byte[1];
+            byte[] cfi1 = new byte[1];
+            int blockRegionCount;
+            int sectorCount0, sectorSize0;
+            int sectorCount1, sectorSize1;
+            int bootFlag;
 
-            //gbcCart_read(0x64, ref cfi);
-            //temp = cfi[0] << 8;
-            //gbcCart_read(0x62, ref cfi);
-            //temp |= cfi[0];
-            //sectorCount = temp + 1;
+            // CFI Query
+            gbcCart_write(0xaa, new byte[] { 0x98 });
 
-            //gbcCart_read(0x68, ref cfi);
-            //temp = cfi[0] << 8;
-            //gbcCart_read(0x66, ref cfi);
-            //temp |= cfi[0];
-            //sectorSize = temp * 256;
+            gbcCart_read(0x58, ref cfi0);
+            blockRegionCount = cfi0[0];
+
+            gbcCart_read(0x5a, ref cfi0);
+            gbcCart_read(0x5c, ref cfi1);
+            sectorCount0 = ((cfi1[0] << 8) | cfi0[0]) + 1;
+
+            gbcCart_read(0x5e, ref cfi0);
+            gbcCart_read(0x60, ref cfi1);
+            sectorSize0 = ((cfi1[0] << 8) | cfi0[0]) * 256;
+
+            gbcCart_read(0x62, ref cfi0);
+            gbcCart_read(0x64, ref cfi1);
+            sectorCount1 = ((cfi1[0] << 8) | cfi0[0]) + 1;
+
+            gbcCart_read(0x66, ref cfi0);
+            gbcCart_read(0x68, ref cfi1);
+            sectorSize1 = ((cfi1[0] << 8) | cfi0[0]) * 256;
+
+            gbcCart_read(0x9e, ref cfi0);
+            bootFlag = cfi0[0];
 
             // reset
             gbcCart_write(0x00, new byte[] { 0xf0 });
+
+            int[] sectorInfo;
+            if (blockRegionCount == 1)
+                sectorInfo = new int[sectorCount0];
+            else
+                sectorInfo = new int[sectorCount0 + sectorCount1];
+
+            if (sectorInfo.Length > 65535)
+                return sectorInfo;
+
+            // 02h bottom boot
+            if (bootFlag == 2 && blockRegionCount == 2)
+            {
+                for (int i = 0; i < sectorCount0; i++)
+                    sectorInfo[i] = i * sectorSize0;
+                for (int i = 0; i < sectorCount1; i++)
+                    sectorInfo[sectorCount0 + i] = sectorCount0 * sectorSize0 + i * sectorSize1;
+            }
+            // 03h top boot
+            else if (bootFlag == 3 && blockRegionCount == 2)
+            {
+                for (int i = 0; i < sectorCount1; i++)
+                    sectorInfo[i] = i * sectorSize1;
+                for (int i = 0; i < sectorCount0; i++)
+                    sectorInfo[sectorCount1 + i] = sectorCount1 * sectorSize1 + i * sectorSize0;
+            }
+            // 04h uniform sectors
+            else
+            {
+                for (int i = 0; i < sectorCount0; i++)
+                    sectorInfo[i] = i * sectorSize0;
+            }
+
+            return sectorInfo;
         }
 
         int mbc5_romCalEraseTime()
         {
             // 获取rom flash buffer大小
-            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
-            mbc5_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
+            int deviceSize, bufferWriteBytes;
+            mbc5_romGetSize(out bufferWriteBytes, out deviceSize);
+
+            int[] secotrInfo = mbc5_sectorInfo();
+            int sectorCount = secotrInfo.Length;
 
             byte[] cfi = new byte[1];
 
@@ -336,19 +397,28 @@ namespace ChisFlashBurner
 
             if (id.Take(2).SequenceEqual(new byte[] { 0xc2, 0xcb }))
                 printLog("MX29LV640EB");
-            if (id.Take(2).SequenceEqual(new byte[] { 0xc2, 0xc9 }))
+            else if (id.Take(2).SequenceEqual(new byte[] { 0xc2, 0xc9 }))
                 printLog("MX29LV640ET");
             else if (id.SequenceEqual(new byte[] { 0x01, 0x7e, 0x22, 0x01 }))
                 printLog("S29GL256N");
             else if (id.SequenceEqual(new byte[] { 0x89, 0x7e, 0x22, 0x01 }))
                 printLog("JS28F256");
+            else if (id.Take(3).SequenceEqual(new byte[] { 0x01, 0x7e, 0x10 }))
+                printLog("W29GL064/S29GL064");
             else
                 printLog("ID暂未收录，可能无法写入");
 
-            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
-            mbc5_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
+            int deviceSize, bufferWriteBytes;
+            mbc5_romGetSize(out bufferWriteBytes, out deviceSize);
 
-            printLog(string.Format("容量:{0:d} 扇区数量:{1:d} 扇区大小:{2:d} BuffWr:{3:d}", deviceSize, sectorCount, sectorSize, bufferWriteBytes));
+            int[] sectorInfo = mbc5_sectorInfo();
+
+            printLog(string.Format("容量:{0:d} 扇区数量:{1:d} 扇区大小:{2:d} BuffWr:{3:d}",
+                                    deviceSize,
+                                    sectorInfo.Length,
+                                    sectorInfo[1],
+                                    bufferWriteBytes)
+            );
 
             if (pwr_5v_enabled)
             {
@@ -390,10 +460,10 @@ namespace ChisFlashBurner
             byte[] temp = new byte[1];
             do
             {
-                showProgress(
-                    (int)stopwatch.ElapsedMilliseconds,
-                    eraseTimeMs
-                );
+                long t = stopwatch.ElapsedMilliseconds;
+                if (t > eraseTimeMs * 0.9)
+                    t = (long)(eraseTimeMs * 0.9);
+                showProgress((int)t, eraseTimeMs);
 
                 Thread.Sleep(1000);
                 gbcCart_read(0, ref temp);
@@ -401,6 +471,7 @@ namespace ChisFlashBurner
             } while (temp[0] != 0xff);
 
             stopwatch.Stop();
+            showProgress(eraseTimeMs, eraseTimeMs);
             printLog("擦除完毕");
             printLog(string.Format("擦除耗时 {0:f3} s", stopwatch.ElapsedMilliseconds / 1000.0f));
 
@@ -450,8 +521,8 @@ namespace ChisFlashBurner
             }
 
             // 获取rom flash buffer大小
-            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
-            mbc5_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
+            int deviceSize, bufferWriteBytes;
+            mbc5_romGetSize(out bufferWriteBytes, out deviceSize);
 
             // 获取id
             byte[] id = mbc5_romGetID();
@@ -501,7 +572,7 @@ namespace ChisFlashBurner
                 Stopwatch swErase = new Stopwatch();
                 swErase.Start();
 
-                mbc5_romEraseSector(addrBegin, addrEnd, sectorSize);
+                mbc5_romEraseSector(addrBegin, addrEnd);
 
                 swErase.Stop();
                 printLog(string.Format("擦除耗时 {0:f3} s", swErase.ElapsedMilliseconds / 1000.0f));
@@ -546,6 +617,9 @@ namespace ChisFlashBurner
                 writtenCount += sentLen;
                 showProgress(writtenCount, fileLength);
             }
+
+            gbcCart_write(0x4000, new byte[] { 0x00 }); // 防止震动
+
             stopwatch.Stop();
 
             if (pwr_5v_enabled)
@@ -592,8 +666,8 @@ namespace ChisFlashBurner
             }
 
             // 获取rom flash buffer大小
-            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
-            mbc5_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
+            int deviceSize, bufferWriteBytes;
+            mbc5_romGetSize(out bufferWriteBytes, out deviceSize);
 
             // 获取工作区间
             int addrBegin, addrEnd;

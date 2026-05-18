@@ -26,20 +26,18 @@ namespace ChisFlashBurner
             rom_write(0, BitConverter.GetBytes((UInt16)0xf0)); // Reset/ASO Exit
 
             // 获取nor信息
-            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
-            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
+            int deviceSize, bufferWriteBytes;
+            gba_romGetSize(out bufferWriteBytes, out deviceSize);
             bool isMultiCard = deviceSize > (32 * 1024 * 1024);
 
-            printLog(string.Format("容量:{0:d} 扇区数量:{1:d} 扇区大小:{2:d} BuffWr:{3:d}", deviceSize, sectorCount, sectorSize, bufferWriteBytes));
+            int[] sectorInfo = gba_sectorInfo();
 
-            if (deviceSize > 512 * 1024 * 1024)
-            {
-                printLog("NOR flash识别异常");
-                port.Close();
-                enableButton();
-                return;
-            }
-
+            printLog(string.Format("容量:{0:d} 扇区数量:{1:d} 扇区大小:{2:d} BuffWr:{3:d}",
+                                    deviceSize,
+                                    sectorInfo.Length,
+                                    sectorInfo[1],
+                                    bufferWriteBytes)
+            );
 
             // Global Non-Volatile Sector Protection Freeze Command Set Definitions
             rom_write(0x000555, BitConverter.GetBytes((UInt16)0xaa));
@@ -71,12 +69,12 @@ namespace ChisFlashBurner
             string str = "";
             bool needToUnlock = false;
 
-            for (int i = 0; i < sectorCount; i++)
+            for (int i = 0; i < sectorInfo.Length; i++)
             {
                 // 切bank
                 if (isMultiCard)
                 {
-                    int bank = i * sectorSize / (32 * 1024 * 1024);
+                    int bank = sectorInfo[i] / (32 * 1024 * 1024);
                     if (bank != currentBank)
                     {
                         gba_romSwitchBank(bank);
@@ -88,7 +86,7 @@ namespace ChisFlashBurner
                 rom_write(0x000555, BitConverter.GetBytes((UInt16)0xaa));
                 rom_write(0x0002aa, BitConverter.GetBytes((UInt16)0x55));
                 rom_write(0x000555, BitConverter.GetBytes((UInt16)0xc0));
-                rom_read((UInt32)(i * sectorSize), ref lockBit);
+                rom_read((uint)sectorInfo[i], ref lockBit);
                 // reset
                 rom_write(0, BitConverter.GetBytes((UInt16)0x90));
                 rom_write(0, BitConverter.GetBytes((UInt16)0x00)); // Command Set Exit
@@ -145,12 +143,12 @@ namespace ChisFlashBurner
             // 再次打印ppb
 
             str = "";
-            for (int i = 0; i < sectorCount; i++)
+            for (int i = 0; i < sectorInfo.Length; i++)
             {
                 // 切bank
                 if (isMultiCard)
                 {
-                    int bank = i * sectorSize / (32 * 1024 * 1024);
+                    int bank = sectorInfo[i] / (32 * 1024 * 1024);
                     if (bank != currentBank)
                     {
                         gba_romSwitchBank(bank);
@@ -162,7 +160,7 @@ namespace ChisFlashBurner
                 rom_write(0x000555, BitConverter.GetBytes((UInt16)0xaa));
                 rom_write(0x0002aa, BitConverter.GetBytes((UInt16)0x55));
                 rom_write(0x000555, BitConverter.GetBytes((UInt16)0xc0));
-                rom_read((UInt32)(i * sectorSize), ref lockBit);
+                rom_read((uint)sectorInfo[i], ref lockBit);
                 // reset
                 rom_write(0, BitConverter.GetBytes((UInt16)0x90));
                 rom_write(0, BitConverter.GetBytes((UInt16)0x00)); // Command Set Exit
@@ -202,11 +200,17 @@ namespace ChisFlashBurner
             gbcCart_write(0, new byte[] { 0xf0 }); // Reset/ASO Exit
 
             // 获取nor信息
-            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
-            mbc5_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
+            int deviceSize, bufferWriteBytes;
+            mbc5_romGetSize(out bufferWriteBytes, out deviceSize);
 
-            printLog(string.Format("容量:{0:d} 扇区数量:{1:d} 扇区大小:{2:d} BuffWr:{3:d}", deviceSize, sectorCount, sectorSize, bufferWriteBytes));
+            int[] sectorInfo = mbc5_sectorInfo();
 
+            printLog(string.Format("容量:{0:d} 扇区数量:{1:d} 扇区大小:{2:d} BuffWr:{3:d}",
+                                    deviceSize,
+                                    sectorInfo.Length,
+                                    sectorInfo[1],
+                                    bufferWriteBytes)
+            );
 
             // Global Non-Volatile Sector Protection Freeze Command Set Definitions
             gbcCart_write(0xaaa, new byte[] { 0xaa });
@@ -232,25 +236,22 @@ namespace ChisFlashBurner
 
 
             // 检查ppb
-
             int currentBank = -1;
             int cartAddress;
             string str = "";
             bool needUnlock = false;
 
-            for (int i = 0; i < sectorCount; i++)
+            for (int i = 0; i < sectorInfo.Length; i++)
             {
-                int bank = (i * sectorSize) >> 14;
+                int sa = sectorInfo[i];
+                int bank = sa >> 14;
                 if (bank != currentBank)
                 {
                     currentBank = bank;
                     mbc_romSwitchBank(mbcTypeSelected(), bank);
                 }
 
-                if (bank == 0)
-                    cartAddress = 0x0000 + ((i * sectorSize) & 0x3fff);
-                else
-                    cartAddress = 0x4000 + ((i * sectorSize) & 0x3fff);
+                cartAddress = mbc_BaseAddressOfBank(mbcTypeSelected(), bank);
 
                 // Non-Volatile Sector Protection Command Set Definitions
                 gbcCart_write(0xaaa, new byte[] { 0xaa });
@@ -311,19 +312,17 @@ namespace ChisFlashBurner
 
             // 再次打印ppb
             str = "";
-            for (int i = 0; i < sectorCount; i++)
+            for (int i = 0; i < sectorInfo.Length; i++)
             {
-                int bank = (i * sectorSize) >> 14;
+                int sa = sectorInfo[i];
+                int bank = sa >> 14;
                 if (bank != currentBank)
                 {
                     currentBank = bank;
                     mbc_romSwitchBank(mbcTypeSelected(), bank);
                 }
 
-                if (bank == 0)
-                    cartAddress = 0x0000 + ((i * sectorSize) & 0x3fff);
-                else
-                    cartAddress = 0x4000 + ((i * sectorSize) & 0x3fff);
+                cartAddress = mbc_BaseAddressOfBank(mbcTypeSelected(), bank);
 
                 // Non-Volatile Sector Protection Command Set Definitions
                 gbcCart_write(0xaaa, new byte[] { 0xaa });
@@ -340,6 +339,9 @@ namespace ChisFlashBurner
                     printLog(str);
                     str = "";
                 }
+
+                if (lockBit[0] != 1)
+                    needUnlock = true;
 
                 str += string.Format("{0:x2}  ", lockBit[0]);
             }
@@ -423,11 +425,9 @@ namespace ChisFlashBurner
                 return;
             }
 
-
             rom_write(0xc4 >> 1, BitConverter.GetBytes((UInt16)1));      // cs 0, sck 1
             rom_write(0xc6 >> 1, BitConverter.GetBytes((UInt16)7));      // cs sio sck output
             rom_write(0xc8 >> 1, BitConverter.GetBytes((UInt16)(0x01))); // enable gpio
-
 
             // 读取RTC状态
             s3511_writeByte(0xc6);
@@ -435,8 +435,6 @@ namespace ChisFlashBurner
             rom_write(0xc4 >> 1, BitConverter.GetBytes((UInt16)1)); // cs 0, sck 1
 
             printLog(string.Format("RTC Status: 0x{0:x2}", status));
-
-
 
             // 断电重置
             if ((status & 0x80) != 0)
@@ -456,8 +454,6 @@ namespace ChisFlashBurner
                 printLog(string.Format("RTC Status: 0x{0:x2}", status));
             }
 
-
-
             // 读取当前时间
             s3511_writeByte(0xa6);
             byte year = s3511_readByte();
@@ -471,8 +467,6 @@ namespace ChisFlashBurner
 
             printLog(string.Format("卡带时间: {0:x2}-{1:x2}-{2:x2} {3:x2}:{4:x2}:{5:x2} 星期{6:x}",
                 year, month, date, hour, minute, second, day));
-
-
 
             // 设置时间
             Form_gba_rtc f = new Form_gba_rtc();
@@ -684,6 +678,17 @@ namespace ChisFlashBurner
         }
 
 
+        void mission_rumbleTest_mbc5()
+        {
+            printLog("震动测试");
+            
+            gbcCart_write(0x4000, new byte[] { 0x08 });
+            Thread.Sleep(500);
+            gbcCart_write(0x4000, new byte[] { 0x00 });
 
+            printLog("-------------------");
+            port.Close();
+            enableButton();
+        }
     }
 }

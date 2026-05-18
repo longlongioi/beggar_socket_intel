@@ -77,6 +77,7 @@
             this.btn_writeRom_mbc5 = new System.Windows.Forms.Button();
             this.btn_writeSave_mbc5 = new System.Windows.Forms.Button();
             this.tabPage3 = new System.Windows.Forms.TabPage();
+            this.btn_rumbleTest_mbc5 = new System.Windows.Forms.Button();
             this.btn_cancel = new System.Windows.Forms.Button();
             this.btn_rumbleTest_gba = new System.Windows.Forms.Button();
             this.btn_setRTC_mbc = new System.Windows.Forms.Button();
@@ -333,7 +334,8 @@
             this.comboBox_saveSize.FormattingEnabled = true;
             this.comboBox_saveSize.Items.AddRange(new object[] {
             "64",
-            "128"});
+            "128",
+            "640"});
             this.comboBox_saveSize.Location = new System.Drawing.Point(95, 42);
             this.comboBox_saveSize.Name = "comboBox_saveSize";
             this.comboBox_saveSize.Size = new System.Drawing.Size(112, 20);
@@ -783,6 +785,7 @@
             // 
             // tabPage3
             // 
+            this.tabPage3.Controls.Add(this.btn_rumbleTest_mbc5);
             this.tabPage3.Controls.Add(this.btn_cancel);
             this.tabPage3.Controls.Add(this.btn_rumbleTest_gba);
             this.tabPage3.Controls.Add(this.btn_setRTC_mbc);
@@ -798,6 +801,16 @@
             this.tabPage3.TabIndex = 2;
             this.tabPage3.Text = "工具";
             this.tabPage3.UseVisualStyleBackColor = true;
+            // 
+            // btn_rumbleTest_mbc5
+            // 
+            this.btn_rumbleTest_mbc5.Location = new System.Drawing.Point(208, 42);
+            this.btn_rumbleTest_mbc5.Name = "btn_rumbleTest_mbc5";
+            this.btn_rumbleTest_mbc5.Size = new System.Drawing.Size(75, 23);
+            this.btn_rumbleTest_mbc5.TabIndex = 17;
+            this.btn_rumbleTest_mbc5.Text = "震动测试";
+            this.btn_rumbleTest_mbc5.UseVisualStyleBackColor = true;
+            this.btn_rumbleTest_mbc5.Click += new System.EventHandler(this.btn_rumbleTest_mbc5_Click);
             // 
             // btn_cancel
             // 
@@ -975,6 +988,7 @@
         private System.Windows.Forms.Button btn_cancel;
         private System.Windows.Forms.ComboBox comboBox_mbcType;
         private System.Windows.Forms.CheckBox checkBox_mbc5V;
+        private System.Windows.Forms.Button btn_rumbleTest_mbc5;
     }
 }
 
