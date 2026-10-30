@@ -198,7 +198,7 @@ namespace ChisFlashBurner
                 int _sa = mbc_BaseAddressOfBank(mbcType, bank);
                 _sa += (sa & 0x3fff);
 
-                gbcCart_write(sa, new byte[] { 0x20 });
+                gbcCart_write((UInt32)sa, new byte[] { 0x20 });
                 gbcCart_write((UInt32)_sa, new byte[] { 0xD0 });   // Sector Erase
 
                 byte[] temp = new byte[1];
