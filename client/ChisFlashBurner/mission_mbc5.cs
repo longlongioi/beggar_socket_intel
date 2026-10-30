@@ -198,7 +198,7 @@ namespace ChisFlashBurner
                 int _sa = mbc_BaseAddressOfBank(mbcType, bank);
                 _sa += (sa & 0x3fff);
 
-                gbcCart_write((UInt32)sa, new byte[] { 0x20 });
+                gbcCart_write((UInt32)_sa, new byte[] { 0x20 });
                 gbcCart_write((UInt32)_sa, new byte[] { 0xD0 });   // Sector Erase
 
                 byte[] temp = new byte[1];
@@ -225,7 +225,9 @@ namespace ChisFlashBurner
             gbcCart_read(0x02, ref id1);  //设备代码 20
             gbcCart_read(0x1c, ref id2);  //
             gbcCart_read(0x1e, ref id3);  //
-
+            // reset
+            gbcCart_write(0x00, new byte[] { 0x50 });
+			gbcCart_write(0x00, new byte[] { 0xff });
             byte[] id = { id0[0], id1[0], id2[0], id3[0] };
             return id;
         }
@@ -252,6 +254,7 @@ namespace ChisFlashBurner
                 bufferWriteBytes = (int)Math.Pow(2, cfi[0]); //最大写入buff
 
             // read array
+			gbcCart_write(0x00, new byte[] { 0x50 });
             gbcCart_write(0x00, new byte[] { 0xff });
         }
 
@@ -291,6 +294,7 @@ namespace ChisFlashBurner
             bootFlag = cfi0[0];
 
             // readarray
+			gbcCart_write(0x00, new byte[] { 0x50 });
             gbcCart_write(0x00, new byte[] { 0xff });
 
             int[] sectorInfo;
@@ -355,7 +359,8 @@ namespace ChisFlashBurner
             //int timeout_chipMax = (int)Math.Pow(2, cfi[0]);
 
             // reset
-            gbcCart_write(0x00, new byte[] { 0xf0 });
+            gbcCart_write(0x00, new byte[] { 0x50 });
+			gbcCart_write(0x00, new byte[] { 0xff });
 
             //return timeout_chip * timeout_chipMax;
             //return (int)(timeout_chip * 1.5);
