@@ -198,12 +198,8 @@ namespace ChisFlashBurner
                 int _sa = mbc_BaseAddressOfBank(mbcType, bank);
                 _sa += (sa & 0x3fff);
 
-                gbcCart_write(0xaaa, new byte[] { 0xaa });
-                gbcCart_write(0x555, new byte[] { 0x55 });
-                gbcCart_write(0xaaa, new byte[] { 0x80 });
-                gbcCart_write(0xaaa, new byte[] { 0xaa });
-                gbcCart_write(0x555, new byte[] { 0x55 });
-                gbcCart_write((UInt32)_sa, new byte[] { 0x30 });   // Sector Erase
+                gbcCart_write(sa, new byte[] { 0x20 });
+                gbcCart_write((UInt32)_sa, new byte[] { 0x0H });   // Sector Erase
 
                 byte[] temp = new byte[1];
                 do
@@ -223,16 +219,12 @@ namespace ChisFlashBurner
             byte[] id3 = new byte[1];
 
             // enter autoselect
-            gbcCart_write(0xaaa, new byte[] { 0xaa });
-            gbcCart_write(0x555, new byte[] { 0x55 });
             gbcCart_write(0xaaa, new byte[] { 0x90 });
             // read id
-            gbcCart_read(0x00, ref id0);
-            gbcCart_read(0x02, ref id1);
-            gbcCart_read(0x1c, ref id2);
-            gbcCart_read(0x1e, ref id3);
-            // reset
-            gbcCart_write(0x00, new byte[] { 0xf0 });
+            gbcCart_read(0x00, ref id0);  //厂商代码 1C
+            gbcCart_read(0x02, ref id1);  //设备代码 20
+            gbcCart_read(0x1c, ref id2);  //
+            gbcCart_read(0x1e, ref id3);  //
 
             byte[] id = { id0[0], id1[0], id2[0], id3[0] };
             return id;
@@ -248,7 +240,7 @@ namespace ChisFlashBurner
             gbcCart_write(0xaa, new byte[] { 0x98 });
 
             gbcCart_read(0x4e, ref cfi);
-            deviceSize = (int)Math.Pow(2, cfi[0]);
+            deviceSize = (int)Math.Pow(2, cfi[0]); // 容量大小
 
             gbcCart_read(0x56, ref cfi);
             temp = cfi[0] << 8;
@@ -257,10 +249,10 @@ namespace ChisFlashBurner
             if (temp == 0)
                 bufferWriteBytes = 0;
             else
-                bufferWriteBytes = (int)Math.Pow(2, cfi[0]);
+                bufferWriteBytes = (int)Math.Pow(2, cfi[0]); //最大写入buff
 
-            // reset
-            gbcCart_write(0x00, new byte[] { 0xf0 });
+            // read array
+            gbcCart_write(0x00, new byte[] { 0xff });
         }
 
 
@@ -298,8 +290,8 @@ namespace ChisFlashBurner
             gbcCart_read(0x9e, ref cfi0);
             bootFlag = cfi0[0];
 
-            // reset
-            gbcCart_write(0x00, new byte[] { 0xf0 });
+            // readarray
+            gbcCart_write(0x00, new byte[] { 0xff });
 
             int[] sectorInfo;
             if (blockRegionCount == 1)
@@ -447,12 +439,8 @@ namespace ChisFlashBurner
             // 获取擦除时间
             int eraseTimeMs = mbc5_romCalEraseTime();
 
-            gbcCart_write(0xaaa, new byte[] { 0xaa });
-            gbcCart_write(0x555, new byte[] { 0x55 });
-            gbcCart_write(0xaaa, new byte[] { 0x80 });
-            gbcCart_write(0xaaa, new byte[] { 0xaa });
-            gbcCart_write(0x555, new byte[] { 0x55 });
-            gbcCart_write(0xaaa, new byte[] { 0x10 }); // Chip Erase
+            gbcCart_write(0x000, new byte[] { 0xa7 });
+            gbcCart_write(0x000, new byte[] { 0xd0 }); // Chip Erase
 
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -598,6 +586,8 @@ namespace ChisFlashBurner
 
                 int romAddress = addrBegin + writtenCount;
                 int cartAddress;
+				int buffcount = 0;
+				byte[] buff = new byte[bufferWriteBytes];
 
                 // 切bank
                 bank = romAddress >> 14;
@@ -612,7 +602,15 @@ namespace ChisFlashBurner
                 cartAddress = mbc_BaseAddressOfBank(mbcType, bank) + (romAddress & 0x3fff);
 
                 // 写入
-                gbcCart_romProgram((UInt32)cartAddress, sendPack, (UInt16)bufferWriteBytes);
+				while (buffcount < 16)
+				{
+					gbcCart_write((UInt32)cartAddress, new byte[] { 0x41 }); // Page program start
+					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes)
+					gbcCart_write((UInt32)cartAddress, buff));
+					buffcount ++
+					
+					//gbcCart_romProgram((UInt32)cartAddress, sendPack, (UInt16)bufferWriteBytes);
+				}
 
                 writtenCount += sentLen;
                 showProgress(writtenCount, fileLength);
