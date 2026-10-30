@@ -605,9 +605,9 @@ namespace ChisFlashBurner
 				while (buffcount < 16)
 				{
 					gbcCart_write((UInt32)cartAddress, new byte[] { 0x41 }); // Page program start
-					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes)
+					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
 					gbcCart_write((UInt32)cartAddress, buff));
-					buffcount ++
+					buffcount ++;
 					
 					//gbcCart_romProgram((UInt32)cartAddress, sendPack, (UInt16)bufferWriteBytes);
 				}
