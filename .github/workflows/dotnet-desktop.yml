@@ -15,10 +15,10 @@ jobs:
         uses: microsoft/setup-msbuild@v2
 
       - name: Restore NuGet packages
-        run: msbuild ../../client/ChisFlashBurner.sln /t:Restore /p:Configuration=Release
+        run: msbuild ./client/ChisFlashBurner.sln /t:Restore /p:Configuration=Release
 
       - name: Build
-        run: msbuild ../../client/ChisFlashBurner.sln /p:Configuration=Release /p:Platform=x64
+        run: msbuild ./client/ChisFlashBurner.sln /p:Configuration=Release /p:Platform=x64
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
