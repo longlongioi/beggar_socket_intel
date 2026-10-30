@@ -199,7 +199,7 @@ namespace ChisFlashBurner
                 _sa += (sa & 0x3fff);
 
                 gbcCart_write(sa, new byte[] { 0x20 });
-                gbcCart_write((UInt32)_sa, new byte[] { 0x0H });   // Sector Erase
+                gbcCart_write((UInt32)_sa, new byte[] { 0xD0 });   // Sector Erase
 
                 byte[] temp = new byte[1];
                 do
@@ -606,7 +606,7 @@ namespace ChisFlashBurner
 				{
 					gbcCart_write((UInt32)cartAddress, new byte[] { 0x41 }); // Page program start
 					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
-					gbcCart_write((UInt32)cartAddress, buff));
+					gbcCart_write((UInt32)cartAddress, buff);
 					buffcount ++;
 					
 					//gbcCart_romProgram((UInt32)cartAddress, sendPack, (UInt16)bufferWriteBytes);
