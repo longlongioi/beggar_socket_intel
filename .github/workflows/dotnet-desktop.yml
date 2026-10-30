@@ -14,16 +14,15 @@ jobs:
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
 
-      - name: Restore NuGet packages
-        run: msbuild ./client/ChisFlashBurner.sln /t:Restore /p:Configuration=Release
+      - name: Build Solution
+        # 直接编译，不带 /t:Restore（Build会自动恢复），不带 /p:Platform=x64
+        run: msbuild ./client/ChisFlashBurner.sln /p:Configuration=Release /v:minimal
 
-      - name: Build
-        run: msbuild ./client/ChisFlashBurner.sln /p:Configuration=Release /p:Platform=x64
-
-      - name: Upload artifact
+      - name: Upload build artifacts
         uses: actions/upload-artifact@v4
         with:
-          name: desktop-app
+          name: ChisFlashBurner
+          # 使用通配符抓取 Release 目录下的所有产物
           path: |
-            **/bin/x64/Release
-            **/bin/Release
+            ./client/**/bin/Release/
+            !./client/**/bin/Release/obj/
