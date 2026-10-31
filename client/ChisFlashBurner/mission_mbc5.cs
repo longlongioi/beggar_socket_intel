@@ -459,6 +459,7 @@ namespace ChisFlashBurner
                 showProgress((int)t, eraseTimeMs);
 
                 Thread.Sleep(1000);
+				gbcCart_write(0x000, new byte[] { 0xff });
                 gbcCart_read(0, ref temp);
                 printLog(string.Format("..... {0:x2}", temp[0]));
             } while (temp[0] != 0xff);
