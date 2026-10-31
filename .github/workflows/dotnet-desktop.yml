@@ -12,7 +12,7 @@ jobs:
       - uses: actions/checkout@v5
 
       - name: Setup MSBuild
-        uses: microsoft/setup-msbuild@v2
+        uses: microsoft/setup-msbuild@v2.1.0
 
       - name: Build Solution
         # 直接编译，不带 /t:Restore（Build会自动恢复），不带 /p:Platform=x64
