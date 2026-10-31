@@ -444,8 +444,8 @@ namespace ChisFlashBurner
             // 获取擦除时间
             int eraseTimeMs = mbc5_romCalEraseTime();
 
-            gbcCart_write(0x000, new byte[] { 0xa7 });
-            gbcCart_write(0x000, new byte[] { 0xd0 }); // Chip Erase
+            gbcCart_write(0x1FFFFF, new byte[] { 0xa7 });
+            gbcCart_write(0x1FFFFF, new byte[] { 0xd0 }); // Chip Erase
 
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
