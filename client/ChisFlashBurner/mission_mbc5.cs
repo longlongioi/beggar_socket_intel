@@ -307,7 +307,7 @@ namespace ChisFlashBurner
                 return sectorInfo;
 
             // 02h bottom boot
-            if (bootFlag == 2 && blockRegionCount == 2)
+            if ((bootFlag == 2 || bootFlag == 12) && blockRegionCount == 2)
             {
                 for (int i = 0; i < sectorCount0; i++)
                     sectorInfo[i] = i * sectorSize0;
@@ -396,6 +396,8 @@ namespace ChisFlashBurner
                 printLog("MX29LV640EB");
             else if (id.Take(2).SequenceEqual(new byte[] { 0xc2, 0xc9 }))
                 printLog("MX29LV640ET");
+            else if (id.Take(2).SequenceEqual(new byte[] { 0x1c, 0x20 }))
+                printLog("M5M29GT320VP-80");			
             else if (id.SequenceEqual(new byte[] { 0x01, 0x7e, 0x22, 0x01 }))
                 printLog("S29GL256N");
             else if (id.SequenceEqual(new byte[] { 0x89, 0x7e, 0x22, 0x01 }))
@@ -522,7 +524,7 @@ namespace ChisFlashBurner
 
             // 获取id
             byte[] id = mbc5_romGetID();
-            if (id.SequenceEqual(new byte[] { 0x89, 0x7e, 0x22, 0x01 })) // js28
+            if (id.Take(2).SequenceEqual(new byte[] { 0x1c, 0x20 }) || id.SequenceEqual(new byte[] { 0x89, 0x7e, 0x22, 0x01 })) // js28
                 bufferWriteBytes = 256;                                  // For a x8 device, maximum buffer size is 256 bytes;
 
             // 获取工作区间
@@ -594,7 +596,7 @@ namespace ChisFlashBurner
 
                 int romAddress = addrBegin + writtenCount;
                 int cartAddress;
-				int buffcount = 0;
+				
 				byte[] buff = new byte[bufferWriteBytes];
 
                 // 切bank
@@ -610,6 +612,7 @@ namespace ChisFlashBurner
                 cartAddress = mbc_BaseAddressOfBank(mbcType, bank) + (romAddress & 0x3fff);
 
                 // 写入
+				int buffcount = 0;
 				while (buffcount < 16)
 				{
 					gbcCart_write((UInt32)cartAddress, new byte[] { 0x41 }); // Page program start
