@@ -621,7 +621,7 @@ namespace ChisFlashBurner
 					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
 					gbcCart_write((UInt32)cartAddress, buff);
 					buffcount ++;
-					cartAddress += 256
+					cartAddress += 256;
 					//gbcCart_romProgram((UInt32)cartAddress, sendPack, (UInt16)bufferWriteBytes);
 				}
 
