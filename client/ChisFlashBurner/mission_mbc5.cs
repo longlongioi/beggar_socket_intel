@@ -321,7 +321,8 @@ namespace ChisFlashBurner
 				
                 int _sa = mbc_BaseAddressOfBank(mbcType, bank);
                 _sa += (sa & 0x3fff);
-
+				
+				gbcCart_write((UInt32)_sa, new byte[] { 0x50 });
                 gbcCart_write((UInt32)_sa, new byte[] { 0x20 });
                 gbcCart_write((UInt32)_sa, new byte[] { 0xD0 });   // Sector Erase
 
@@ -611,7 +612,7 @@ namespace ChisFlashBurner
                     //printLog(string.Format("    切换至 bank{0:d}", bank));
                 }
 
-                cartAddress = mbc_BaseAddressOfBank(mbcType, bank) + (romAddress & 0x3fff);
+                cartAddress = mbc_BaseAddressOfBank(mbcType, bank) + (romAddress & 0x3fff)+256;
 
                 // 写入
 				int buffcount = 0;
