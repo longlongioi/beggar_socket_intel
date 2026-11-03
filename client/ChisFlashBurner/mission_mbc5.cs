@@ -623,7 +623,7 @@ namespace ChisFlashBurner
 					gbcCart_write((UInt32)cartAddress, buff);
 					buffcount ++;					
 					cartAddress += 256;
-					Thread.Sleep(100);
+					Thread.Sleep(5);
 					//gbcCart_romProgram((UInt32)cartAddress, sendPack, (UInt16)bufferWriteBytes);
 				}
 
