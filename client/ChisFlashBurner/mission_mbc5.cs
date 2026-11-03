@@ -161,55 +161,6 @@ namespace ChisFlashBurner
             }
         }
 
-        void mbc5_romEraseSector(int addrFrom, int addrTo)
-        {
-            int mbcType = mbcTypeSelected();
-            int[] sectorInfo = mbc5_sectorInfo();
-
-            printLog(string.Format("擦除 0x{0:x8} - 0x{1:x8}", addrFrom, addrTo));
-
-            // 获取区间
-            int sectorStart = -1;
-            int sectorEnd = -1;
-
-            for (int i = 0; i < sectorInfo.Length; i++)
-            {
-                if (sectorInfo[i] <= addrFrom)
-                    sectorStart = i;
-                if (sectorInfo[i] >= addrTo)
-                    break;
-                else
-                    sectorEnd = i;
-            }
-
-            // 开始擦
-            int sectorCount = sectorEnd - sectorStart + 1;
-
-            for (int i = sectorCount; i > 0; i--)
-            {
-                int sa = sectorInfo[sectorStart + i - 1];
-
-                printLog(string.Format("    0x{0:x8}", sa));
-                showProgress(i, sectorCount);
-
-                int bank = sa >> 14;
-                mbc_romSwitchBank(mbcType, bank);
-
-                int _sa = mbc_BaseAddressOfBank(mbcType, bank);
-                _sa += (sa & 0x3fff);
-
-                gbcCart_write((UInt32)_sa, new byte[] { 0x20 });
-                gbcCart_write((UInt32)_sa, new byte[] { 0xD0 });   // Sector Erase
-
-                byte[] temp = new byte[1];
-                do
-                {
-                    gbcCart_read((UInt32)_sa, ref temp);
-                    Thread.Sleep(20);
-                } while (temp[0] != 0xff);
-            }
-        }
-
         byte[] mbc5_romGetID()
         {
 
@@ -330,6 +281,57 @@ namespace ChisFlashBurner
             }
 
             return sectorInfo;
+        }
+		
+		
+        void mbc5_romEraseSector(int addrFrom, int addrTo)
+        {
+            int mbcType = mbcTypeSelected();
+            int[] sectorInfo = mbc5_sectorInfo();
+
+            printLog(string.Format("擦除 0x{0:x8} - 0x{1:x8}", addrFrom, addrTo));
+
+            // 获取区间
+            int sectorStart = -1;
+            int sectorEnd = -1;
+
+            for (int i = 0; i < sectorInfo.Length; i++)
+            {
+                if (sectorInfo[i] <= addrFrom)
+                    sectorStart = i;
+                if (sectorInfo[i] >= addrTo)
+                    break;
+                else
+                    sectorEnd = i;
+            }
+
+            // 开始擦
+            int sectorCount = sectorEnd - sectorStart + 1;
+
+            for (int i = sectorCount; i > 0; i--)
+            {
+                int sa = sectorInfo[sectorStart + i - 1];
+
+                printLog(string.Format("    0x{0:x8}", sa));
+                showProgress(i, sectorCount);
+
+                int bank = sa >> 14;
+                mbc_romSwitchBank(mbcType, bank);
+				Thread.Sleep(20);
+				
+                int _sa = mbc_BaseAddressOfBank(mbcType, bank);
+                _sa += (sa & 0x3fff);
+
+                gbcCart_write((UInt32)_sa, new byte[] { 0x20 });
+                gbcCart_write((UInt32)_sa, new byte[] { 0xD0 });   // Sector Erase
+
+                byte[] temp = new byte[1];
+                do
+                {
+                    gbcCart_read((UInt32)_sa, ref temp);
+                    Thread.Sleep(20);
+                } while (temp[0] != 0xff);
+            }
         }
 
         int mbc5_romCalEraseTime()
@@ -619,7 +621,7 @@ namespace ChisFlashBurner
 					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
 					gbcCart_write((UInt32)cartAddress, buff);
 					buffcount ++;
-					
+					cartAddress += 256
 					//gbcCart_romProgram((UInt32)cartAddress, sendPack, (UInt16)bufferWriteBytes);
 				}
 
