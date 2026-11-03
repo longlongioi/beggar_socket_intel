@@ -613,7 +613,7 @@ namespace ChisFlashBurner
                 }
 
                 cartAddress = mbc_BaseAddressOfBank(mbcType, bank) + (romAddress & 0x3fff)+256;
-				printLog(string.Format("{0:x}}",cartAddress));
+				printLog(string.Format("{0:x}",cartAddress));
 
                 // 写入
 				int buffcount = 0;
@@ -623,10 +623,10 @@ namespace ChisFlashBurner
 					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
 					gbcCart_write((UInt32)cartAddress, buff);
 					buffcount ++;
-					printLog(string.Format("{0:d}}",buffcount));
+					printLog(string.Format("{0:d}",buffcount));
 					
 					cartAddress += 256;
-					printLog(string.Format("{0:x}}",cartAddress));
+					printLog(string.Format("{0:x}",cartAddress));
 					//gbcCart_romProgram((UInt32)cartAddress, sendPack, (UInt16)bufferWriteBytes);
 				}
 
