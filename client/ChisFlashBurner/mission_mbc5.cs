@@ -325,7 +325,7 @@ namespace ChisFlashBurner
 				gbcCart_write((UInt32)_sa, new byte[] { 0x50 });
                 gbcCart_write((UInt32)_sa, new byte[] { 0x20 });
                 gbcCart_write((UInt32)_sa, new byte[] { 0xD0 });   // Sector Erase
-
+				Thread.Sleep(64);
                 byte[] temp = new byte[1];
                 do
                 {
@@ -612,8 +612,7 @@ namespace ChisFlashBurner
                     //printLog(string.Format("    切换至 bank{0:d}", bank));
                 }
 
-                cartAddress = mbc_BaseAddressOfBank(mbcType, bank) + (romAddress & 0x3fff)+256;
-				printLog(string.Format("{0:x}",cartAddress));
+                cartAddress = mbc_BaseAddressOfBank(mbcType, bank) + (romAddress & 0x3fff);
 
                 // 写入
 				int buffcount = 0;
@@ -622,11 +621,9 @@ namespace ChisFlashBurner
 					gbcCart_write((UInt32)cartAddress, new byte[] { 0x41 }); // Page program start
 					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
 					gbcCart_write((UInt32)cartAddress, buff);
-					buffcount ++;
-					printLog(string.Format("{0:d}",buffcount));
-					
+					buffcount ++;					
 					cartAddress += 256;
-					printLog(string.Format("{0:x}",cartAddress));
+					Thread.Sleep(100);
 					//gbcCart_romProgram((UInt32)cartAddress, sendPack, (UInt16)bufferWriteBytes);
 				}
 
