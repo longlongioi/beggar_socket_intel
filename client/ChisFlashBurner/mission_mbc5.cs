@@ -322,16 +322,17 @@ namespace ChisFlashBurner
                 int _sa = mbc_BaseAddressOfBank(mbcType, bank);
                 _sa += (sa & 0x3fff);
 				
-				gbcCart_write((UInt32)_sa, new byte[] { 0x50 });
                 gbcCart_write((UInt32)_sa, new byte[] { 0x20 });
                 gbcCart_write((UInt32)_sa, new byte[] { 0xD0 });   // Sector Erase
 				Thread.Sleep(64);
+				
+				gbcCart_write((UInt32)_sa, new byte[] { 0x70 });
                 byte[] temp = new byte[1];
                 do
                 {
                     gbcCart_read((UInt32)_sa, ref temp);
                     Thread.Sleep(20);
-                } while (temp[0] != 0xff);
+                } while ((temp[0] & 0x80) == 0);
             }
         }
 
@@ -620,6 +621,7 @@ namespace ChisFlashBurner
 				{
 					gbcCart_write((UInt32)cartAddress, new byte[] { 0x41 }); // Page program start
 					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
+					printLog(string.Format("buff:{0:d}", buff));
 					gbcCart_write((UInt32)cartAddress, buff);
 					buffcount ++;					
 					cartAddress += 256;
