@@ -27,7 +27,8 @@ namespace ChisFlashBurner
 
         void gba_sramSwitchBank(int bank)
         {
-            //bank = bank == 0 ? 0 : 1;
+            bank = bank == 0 ? 0 : 1;
+
             rom_write(0x800000, BitConverter.GetBytes((UInt16)bank));
         }
 
@@ -67,10 +68,10 @@ namespace ChisFlashBurner
             ram_write(0x0000, new byte[] { (byte)bank });
         }
 
-        void gba_romGetSize(out int bufferWriteBytes, out int deviceSize)
+        void gba_romGetSize(out int sectorCount, out int sectorSize, out int bufferWriteBytes, out int deviceSize)
         {
             byte[] cfi = new byte[20];
-            int temp;
+            int temp, temp1;
 
             // CFI Query
             rom_write(0x55, BitConverter.GetBytes((UInt16)0x98));
@@ -86,81 +87,21 @@ namespace ChisFlashBurner
                 bufferWriteBytes = 0;
             else
                 bufferWriteBytes = (int)Math.Pow(2, temp);
-        }
 
-        int[] gba_sectorInfo()
-        {
-            int blockRegionCount;
-            int sectorCount0, sectorSize0;
-            int sectorCount1, sectorSize1;
-            int bootFlag;
+            temp = BitConverter.ToUInt16(cfi, 12);  // 2d
+            temp1 = BitConverter.ToUInt16(cfi, 14); // 2e
+            sectorCount = (((temp1 & 0xff) << 8) | (temp & 0xff)) + 1;
 
-            byte[] cfi = new byte[4];
-
-            // CFI Query
-            rom_write(0x55, BitConverter.GetBytes((UInt16)0x98));
-
-            rom_read(0x2c << 1, ref cfi);
-            blockRegionCount = BitConverter.ToInt16(cfi, 0);
-
-            rom_read(0x2d << 1, ref cfi);
-            sectorCount0 = ((cfi[2] << 8) | cfi[0]) + 1;
-
-            rom_read(0x2f << 1, ref cfi);
-            sectorSize0 = ((cfi[2] << 8) | cfi[0]) * 256;
-
-            rom_read(0x31 << 1, ref cfi);
-            sectorCount1 = ((cfi[2] << 8) | cfi[0]) + 1;
-
-            rom_read(0x33 << 1, ref cfi);
-            sectorSize1 = ((cfi[2] << 8) | cfi[0]) * 256;
-
-            rom_read(0x4f << 1, ref cfi);
-            bootFlag = BitConverter.ToInt16(cfi, 0);
-
-            // reset
-            rom_write(0x00, BitConverter.GetBytes((UInt16)0xf0));
-
-            int[] sectorInfo;
-
-            if (blockRegionCount == 1)
-                sectorInfo = new int[sectorCount0];
-            else
-                sectorInfo = new int[sectorCount0 + sectorCount1];
-
-            if (sectorInfo.Length > 65535)
-                return sectorInfo;
-
-            // 02h bottom boot
-            if (bootFlag == 2 && blockRegionCount == 2)
-            {
-                for (int i = 0; i < sectorCount0; i++)
-                    sectorInfo[i] = i * sectorSize0;
-                for (int i = 0; i < sectorCount1; i++)
-                    sectorInfo[sectorCount0 + i] = sectorCount0 * sectorSize0 + i * sectorSize1;
-            }
-            // 03h top boot
-            else if (bootFlag == 3 && blockRegionCount == 2)
-            {
-                for (int i = 0; i < sectorCount1; i++)
-                    sectorInfo[i] = i * sectorSize1;
-                for (int i = 0; i < sectorCount0; i++)
-                    sectorInfo[sectorCount1 + i] = sectorCount1 * sectorSize1 + i * sectorSize0;
-            }
-            // 04h uniform sectors
-            else
-            {
-                for (int i = 0; i < sectorCount0; i++)
-                    sectorInfo[i] = i * sectorSize0;
-            }
-
-            return sectorInfo;
+            temp = BitConverter.ToUInt16(cfi, 16); // 2f
+            temp1 = BitConverter.ToUInt16(cfi, 18); // 30
+            sectorSize = (((temp1 & 0xff) << 8) | (temp & 0xff)) * 256;
         }
 
 
         int gba_romGetEraseTime()
         {
-            int[] sectorInfo = gba_sectorInfo();
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
 
             byte[] cfi = new byte[20];
             int temp;
@@ -186,43 +127,32 @@ namespace ChisFlashBurner
             //return timeout_chip * timeout_chipMax;
             //return (int)(timeout_chip * 1.5);
             //return timeout_chip;
-            if (timeout_chip == 1)
-                return timeout_block * sectorInfo.Length;
+            if (timeout_chip == 0)
+                return timeout_block * sectorCount;
             else
                 return timeout_chip;
         }
 
-        void gba_romEraseSector(int addrFrom, int addrTo, bool isMultiCard = false)
+        void gba_romEraseSector(int addrFrom, int addrTo, int sectorSize, bool isMultiCard = false)
         {
-            int[] sectorInfo = gba_sectorInfo();
+            addrFrom /= 2;
+            addrTo /= 2;
+            sectorSize /= 2;
 
-            printLog(string.Format("擦除 0x{0:x8} - 0x{1:x8}", addrFrom / 2, addrTo / 2));
+            int sectorMask = sectorSize - 1;
+            addrTo &= ~sectorMask;
 
-            // 获取区间
-            int sectorStart = -1;
-            int sectorEnd = -1;
+            printLog(string.Format("擦除 0x{0:x8} - 0x{1:x8}", addrFrom, addrTo));
 
-            for (int i = 0; i < sectorInfo.Length; i++)
-            {
-                if (sectorInfo[i] <= addrFrom)
-                    sectorStart = i;
-                if (sectorInfo[i] >= addrTo)
-                    break;
-                else
-                    sectorEnd = i;
-            }
-
-            // 开始擦
             int currentBank = -1;
-            int sectorCount = sectorEnd - sectorStart + 1;
 
-            for (int i = sectorCount; i > 0; i--)
+            for (int sa = addrTo; sa >= addrFrom; sa -= sectorSize)
             {
-                int sa = sectorInfo[sectorStart + i - 1];
+                printLog(string.Format("    0x{0:x8}", sa));
 
                 if (isMultiCard)
                 {
-                    int bank = sa / (32 * 1024 * 1024);
+                    int bank = sa / (32 / 2 * 1024 * 1024);
                     if (bank != currentBank)
                     {
                         printLog(string.Format("切换至Bank {0}", bank));
@@ -230,8 +160,6 @@ namespace ChisFlashBurner
                         currentBank = bank;
                     }
                 }
-                printLog(string.Format("    0x{0:x8}", sa / 2));
-                showProgress(i, sectorCount);
 
                 // Sector Erase
                 rom_write(0x555, BitConverter.GetBytes((UInt16)0xaa));
@@ -239,12 +167,14 @@ namespace ChisFlashBurner
                 rom_write(0x555, BitConverter.GetBytes((UInt16)0x80));
                 rom_write(0x555, BitConverter.GetBytes((UInt16)0xaa));
                 rom_write(0x2aa, BitConverter.GetBytes((UInt16)0x55));
-                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0x30));
+                rom_write((uint)sa, BitConverter.GetBytes((UInt16)0x30));
+
+                showProgress((sa - addrFrom) / sectorSize + 1, (addrTo - addrFrom) / sectorSize + 1);
 
                 byte[] temp = new byte[2];
                 do
                 {
-                    rom_read((uint)(sa), ref temp);
+                    rom_read((uint)(sa << 1), ref temp);
                     Thread.Sleep(20);
                 } while (BitConverter.ToUInt16(temp, 0) != 0xffff);
             }
@@ -252,8 +182,8 @@ namespace ChisFlashBurner
 
         bool gba_isMultiCard()
         {
-            int deviceSize, bufferWriteBytes;
-            gba_romGetSize(out bufferWriteBytes, out deviceSize);
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
 
             int i = comboBox_gbaMultiCartSelect.SelectedIndex;
 
@@ -310,17 +240,10 @@ namespace ChisFlashBurner
                 printLog("ID暂未收录，可能无法写入");
 
             // cfi
-            int deviceSize, bufferWriteBytes;
-            gba_romGetSize(out bufferWriteBytes, out deviceSize);
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
 
-            int[] sectorInfo = gba_sectorInfo();
-
-            printLog(string.Format("容量:{0:d} 扇区数量:{1:d} 扇区大小:{2:d} BuffWr:{3:d}",
-                                    deviceSize,
-                                    sectorInfo.Length,
-                                    sectorInfo[1],
-                                    bufferWriteBytes)
-            );
+            printLog(string.Format("容量:{0:d} 扇区数量:{1:d} 扇区大小:{2:d} BuffWr:{3:d}", deviceSize, sectorCount, sectorSize, bufferWriteBytes));
 
             // 合卡信息
             if (deviceSize > 32 * 1024 * 1024)
@@ -366,6 +289,7 @@ namespace ChisFlashBurner
 
         void mission_eraseChip()
         {
+
             // 02g的胶水双核要擦两次
             byte[] id = new byte[8];
             rom_readID(ref id);
@@ -384,40 +308,50 @@ namespace ChisFlashBurner
             stopwatch.Start();
 
             // 检查结果
-            for (int i = 0; ;)
+            while (true)
             {
-                long t = stopwatch.ElapsedMilliseconds;
-                if (t > eraseTimeMs * 0.9)
-                    t = (long)(eraseTimeMs * 0.9);
-                showProgress((int)t, eraseTimeMs);
+                showProgress(
+                    (int)stopwatch.ElapsedMilliseconds,
+                    eraseTimeMs
+                );
 
                 byte[] respon = new byte[2];
                 rom_read(0x000000, ref respon);
 
                 printLog(string.Format("..... {0:x4}", BitConverter.ToUInt16(respon, 0)));
-
                 if (BitConverter.ToUInt16(respon, 0) == 0xffff)
-                {
-                    if (isS70GL02 && i == 0)
-                    {
-                        i++;
-                        gba_romSwitchBank(4);
-                        printLog("02G再擦1次");
-                        rom_eraseChip();// 擦
-                    }
-                    else
-                    {
-                        break;
-                    }
-                }
+                    break;
                 else
-                {
                     Thread.Sleep(1000);
+            }
+
+            if (isS70GL02)
+            {
+                gba_romSwitchBank(4);
+                printLog("02G再擦1次");
+
+                // 擦
+                rom_eraseChip();
+                // 检查结果
+                while (true)
+                {
+                    showProgress(
+                        (int)stopwatch.ElapsedMilliseconds,
+                        eraseTimeMs
+                    );
+
+                    byte[] respon = new byte[2];
+                    rom_read(0x000000, ref respon);
+
+                    printLog(string.Format("..... {0:x4}", BitConverter.ToUInt16(respon, 0)));
+                    if (BitConverter.ToUInt16(respon, 0) == 0xffff)
+                        break;
+                    else
+                        Thread.Sleep(1000);
                 }
             }
 
             stopwatch.Stop();
-            showProgress(eraseTimeMs, eraseTimeMs);
             printLog("擦除完毕");
             printLog(string.Format("擦除耗时 {0:f3} s", stopwatch.ElapsedMilliseconds / 1000.0f));
 
@@ -461,8 +395,8 @@ namespace ChisFlashBurner
             }
 
             // 获取rom flash buffer大小
-            int deviceSize, bufferWriteBytes;
-            gba_romGetSize(out bufferWriteBytes, out deviceSize);
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
 
             bool isMultiCard = gba_isMultiCard();
 
@@ -496,7 +430,7 @@ namespace ChisFlashBurner
                 Stopwatch swErase = new Stopwatch();
                 swErase.Start();
 
-                gba_romEraseSector(addrBegin, addrEnd, isMultiCard);
+                gba_romEraseSector(addrBegin, addrEnd, sectorSize, isMultiCard);
 
                 swErase.Stop();
                 printLog(string.Format("擦除耗时 {0:f3} s", swErase.ElapsedMilliseconds / 1000.0f));
@@ -573,8 +507,8 @@ namespace ChisFlashBurner
             byte[] rom = new byte[fileLength];
 
             // 获取rom flash buffer大小
-            int deviceSize, bufferWriteBytes;
-            gba_romGetSize(out bufferWriteBytes, out deviceSize);
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
 
             bool isMultiCard = gba_isMultiCard();
 
@@ -682,8 +616,8 @@ namespace ChisFlashBurner
             }
 
             // 获取rom flash buffer大小
-            int deviceSize, bufferWriteBytes;
-            gba_romGetSize(out bufferWriteBytes, out deviceSize);
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
 
             bool isMultiCard = gba_isMultiCard();
 
@@ -833,14 +767,21 @@ namespace ChisFlashBurner
             while (writtenCount < fileLength)
             {
                 // 切bank
-                int bank = writtenCount / (64 * 1024);
-                if ((writtenCount % (64 * 1024)) == 0)
+                if (writtenCount == 0x00000)
                 {
-                    printLog(string.Format("切换至Bank {0}", bank));
+                    printLog("切换至Bank 0");
                     if (comboBox_ramType.Text == "FLASH")
-                        gba_flashSwitchBank(bank);
+                        gba_flashSwitchBank(0);
                     else
-                        gba_sramSwitchBank(bank);
+                        gba_sramSwitchBank(0);
+                }
+                if (writtenCount == 0x10000)
+                {
+                    printLog("切换至Bank 1");
+                    if (comboBox_ramType.Text == "FLASH")
+                        gba_flashSwitchBank(1);
+                    else
+                        gba_sramSwitchBank(1);
                 }
 
                 UInt32 baseAddr = (UInt32)(writtenCount & 0xffff);
@@ -899,14 +840,21 @@ namespace ChisFlashBurner
             while (readCount < fileLength)
             {
                 // 切bank
-                int bank = readCount / (64 * 1024);
-                if ((readCount % (64 * 1024)) == 0)
+                if (readCount == 0x00000)
                 {
-                    printLog(string.Format("切换至Bank {0}", bank));
+                    printLog("切换至Bank 0");
                     if (comboBox_ramType.Text == "FLASH")
-                        gba_flashSwitchBank(bank);
+                        gba_flashSwitchBank(0);
                     else
-                        gba_sramSwitchBank(bank);
+                        gba_sramSwitchBank(0);
+                }
+                if (readCount == 0x10000)
+                {
+                    printLog("切换至Bank 1");
+                    if (comboBox_ramType.Text == "FLASH")
+                        gba_flashSwitchBank(1);
+                    else
+                        gba_sramSwitchBank(1);
                 }
 
                 UInt32 baseAddr = (UInt32)(readCount & 0xffff);
@@ -971,14 +919,21 @@ namespace ChisFlashBurner
             while (readCount < fileLength)
             {
                 // 切bank
-                int bank = readCount / (64 * 1024);
-                if ((readCount % (64 * 1024)) == 0)
+                if (readCount == 0x00000)
                 {
-                    printLog(string.Format("切换至Bank {0}", bank));
+                    printLog("切换至Bank 0");
                     if (comboBox_ramType.Text == "FLASH")
-                        gba_flashSwitchBank(bank);
+                        gba_flashSwitchBank(0);
                     else
-                        gba_sramSwitchBank(bank);
+                        gba_sramSwitchBank(0);
+                }
+                if (readCount == 0x10000)
+                {
+                    printLog("切换至Bank 1");
+                    if (comboBox_ramType.Text == "FLASH")
+                        gba_flashSwitchBank(1);
+                    else
+                        gba_sramSwitchBank(1);
                 }
 
                 UInt32 baseAddr = (UInt32)(readCount & 0xffff);
@@ -1035,8 +990,8 @@ namespace ChisFlashBurner
 
 
             // 获取rom flash buffer大小
-            int deviceSize, bufferWriteBytes;
-            gba_romGetSize(out bufferWriteBytes, out deviceSize);
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
             bool isMultiCard = gba_isMultiCard();
 
 
@@ -1122,15 +1077,18 @@ namespace ChisFlashBurner
             file.Read(sav, 0, fileLength);
             file.Close();
 
+
             // 获取rom flash buffer大小
-            int deviceSize, bufferWriteBytes;
-            gba_romGetSize(out bufferWriteBytes, out deviceSize);
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
 
             bool isMultiCard = gba_isMultiCard();
             int baseAddress = gba_multiCardBaseAddr();
 
             if (isMultiCard)
                 gba_romSwitchBank_byAddr(baseAddress);
+
+
 
             // 找呀找呀找存档
             int sav_offset, sav_size;
@@ -1156,7 +1114,7 @@ namespace ChisFlashBurner
             // 开始写入
 
             printLog(string.Format("擦除存档 {0:x8} - {1:x8}", sav_offset, sav_offset + sav_size));
-            gba_romEraseSector(sav_offset, sav_offset + sav_size, isMultiCard);
+            gba_romEraseSector(sav_offset, sav_offset + sav_size, sectorSize, isMultiCard);
 
             int writtenCount = 0;
             while (writtenCount < sav_size)
@@ -1210,8 +1168,8 @@ namespace ChisFlashBurner
 
 
             // 获取rom flash buffer大小
-            int deviceSize, bufferWriteBytes;
-            gba_romGetSize(out bufferWriteBytes, out deviceSize);
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
 
             bool isMultiCard = gba_isMultiCard();
             int baseAddress = gba_multiCardBaseAddr();
@@ -1304,8 +1262,8 @@ namespace ChisFlashBurner
 
 
             // 获取rom flash buffer大小
-            int deviceSize, bufferWriteBytes;
-            gba_romGetSize(out bufferWriteBytes, out deviceSize);
+            int deviceSize, sectorCount, sectorSize, bufferWriteBytes;
+            gba_romGetSize(out sectorCount, out sectorSize, out bufferWriteBytes, out deviceSize);
 
             bool isMultiCard = gba_isMultiCard();
             int baseAddress = gba_multiCardBaseAddr();
