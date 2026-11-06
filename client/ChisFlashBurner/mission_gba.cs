@@ -132,7 +132,7 @@ namespace ChisFlashBurner
                 return sectorInfo;
 
             // 02h bottom boot
-            if (bootFlag == 2 && blockRegionCount == 2)
+            if ((bootFlag == 2 || bootFlag == 0) && blockRegionCount == 2)
             {
                 for (int i = 0; i < sectorCount0; i++)
                     sectorInfo[i] = i * sectorSize0;
@@ -169,7 +169,7 @@ namespace ChisFlashBurner
             rom_write(0x55, BitConverter.GetBytes((UInt16)0x98));
             rom_read(0x1f << 1, ref cfi);
             // reset
-            rom_write(0x00, BitConverter.GetBytes((UInt16)0xf0));
+            rom_write(0x00, BitConverter.GetBytes((UInt16)0xff));
 
             //Typical timeout per individual block erase = 2^n ms
             temp = BitConverter.ToUInt16(cfi, 4);
@@ -234,12 +234,10 @@ namespace ChisFlashBurner
                 showProgress(i, sectorCount);
 
                 // Sector Erase
-                rom_write(0x555, BitConverter.GetBytes((UInt16)0xaa));
-                rom_write(0x2aa, BitConverter.GetBytes((UInt16)0x55));
-                rom_write(0x555, BitConverter.GetBytes((UInt16)0x80));
-                rom_write(0x555, BitConverter.GetBytes((UInt16)0xaa));
-                rom_write(0x2aa, BitConverter.GetBytes((UInt16)0x55));
-                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0x30));
+                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0x50));
+                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xff));
+                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0x20));
+                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xd0));
 
                 byte[] temp = new byte[2];
                 do
@@ -381,7 +379,10 @@ namespace ChisFlashBurner
             int eraseTimeMs = gba_romGetEraseTime();
 
             // 开擦
-            rom_eraseChip();
+			rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0x50));
+			rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xff));
+			rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xa7));
+			rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xd0));
 
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -538,7 +539,19 @@ namespace ChisFlashBurner
                 }
 
                 // 写入
-                rom_program((UInt32)romAddress, sendPack, (UInt16)bufferWriteBytes);
+				int buffcount = 0;
+				while (buffcount < 16)
+				{
+					rom_write((UInt32)romAddress, new byte[] { 0x41 }); // Page program start
+					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
+					// printLog(string.Format("{0}", string.Join(" ", buff.Select(b => b.ToString("X2")))));
+					rom_write((UInt32)romAddress, buff);
+					buffcount ++;					
+					cartAddress += 256;
+					Thread.Sleep(5);
+				}
+				
+                //rom_program((UInt32)romAddress, sendPack, (UInt16)bufferWriteBytes);
                 //rom_program((UInt32)romAddress, sendPack, 0);
 
                 writtenCount += sentLen;

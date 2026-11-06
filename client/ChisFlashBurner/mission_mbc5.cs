@@ -617,6 +617,14 @@ namespace ChisFlashBurner
 
                 // 写入
 				int buffcount = 0;
+	
+				Thread.Sleep(10);
+				port.RtsEnable = true;
+				port.DtrEnable = true;
+				port.RtsEnable = false;
+				port.DtrEnable = false;
+				Thread.Sleep(10);	
+				
 				while (buffcount < 16)
 				{
 					gbcCart_write((UInt32)cartAddress, new byte[] { 0x41 }); // Page program start
