@@ -601,7 +601,7 @@ namespace ChisFlashBurner
                 int romAddress = addrBegin + writtenCount;
                 int cartAddress;
 				
-				byte[] buff = new byte[bufferWriteBytes];
+
 
                 // 切bank
                 bank = romAddress >> 14;
@@ -614,22 +614,22 @@ namespace ChisFlashBurner
                 }
 
                 cartAddress = mbc_BaseAddressOfBank(mbcType, bank) + (romAddress & 0x3fff);
-
-                // 写入
-				int buffcount = 0;
-	
+				
 				Thread.Sleep(10);
 				port.RtsEnable = true;
 				port.DtrEnable = true;
 				port.RtsEnable = false;
 				port.DtrEnable = false;
-				Thread.Sleep(10);	
+				Thread.Sleep(10);
 				
+                // 写入
+				int buffcount = 0;
+				byte[] buff = new byte[bufferWriteBytes];				
 				while (buffcount < 16)
 				{
 					gbcCart_write((UInt32)cartAddress, new byte[] { 0x41 }); // Page program start
 					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
-					printLog(string.Format("{0}", string.Join(" ", buff.Select(b => b.ToString("X2")))));
+					// printLog(string.Format("{0}", string.Join(" ", buff.Select(b => b.ToString("X2")))));
 					gbcCart_write((UInt32)cartAddress, buff);
 					buffcount ++;					
 					cartAddress += 256;

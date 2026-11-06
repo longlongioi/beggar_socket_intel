@@ -379,10 +379,10 @@ namespace ChisFlashBurner
             int eraseTimeMs = gba_romGetEraseTime();
 
             // 开擦
-			rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0x50));
-			rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xff));
-			rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xa7));
-			rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xd0));
+			rom_write(0x00, BitConverter.GetBytes((UInt16)0x50));
+			rom_write(0x00, BitConverter.GetBytes((UInt16)0xff));
+			rom_write(0x00, BitConverter.GetBytes((UInt16)0xa7));
+			rom_write(0x00, BitConverter.GetBytes((UInt16)0xd0));
 
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
@@ -540,6 +540,7 @@ namespace ChisFlashBurner
 
                 // 写入
 				int buffcount = 0;
+				byte[] buff = new byte[bufferWriteBytes];
 				while (buffcount < 16)
 				{
 					rom_write((UInt32)romAddress, new byte[] { 0x41 }); // Page program start
@@ -547,7 +548,7 @@ namespace ChisFlashBurner
 					// printLog(string.Format("{0}", string.Join(" ", buff.Select(b => b.ToString("X2")))));
 					rom_write((UInt32)romAddress, buff);
 					buffcount ++;					
-					cartAddress += 256;
+					romAddress += 256;
 					Thread.Sleep(5);
 				}
 				
