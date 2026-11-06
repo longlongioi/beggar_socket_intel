@@ -322,8 +322,7 @@ namespace ChisFlashBurner
                 int _sa = mbc_BaseAddressOfBank(mbcType, bank);
                 _sa += (sa & 0x3fff);
 				
-                gbcCart_write((UInt32)_sa, new byte[] { 0x20 });
-                gbcCart_write((UInt32)_sa, new byte[] { 0xD0 });   // Sector Erase
+                gbcCart_write((UInt32)_sa, new byte[] { 0x20,0xD0 });// Sector Erase  
 				Thread.Sleep(64);
 				
 				gbcCart_write((UInt32)_sa, new byte[] { 0x70 });
@@ -450,10 +449,8 @@ namespace ChisFlashBurner
             // 获取擦除时间
             int eraseTimeMs = mbc5_romCalEraseTime();
 			byte[] temp = new byte[1];
-			
-			gbcCart_read(0, ref temp);			
-            gbcCart_write(0x1FFFFF, new byte[] { 0xa7 });
-            gbcCart_write(0x1FFFFF, new byte[] { 0xd0 }); // Chip Erase
+					
+            gbcCart_write(0x00, new byte[] { 0xa7,0xd0 });// Chip Erase
 
             Stopwatch stopwatch = new Stopwatch();
             stopwatch.Start();
