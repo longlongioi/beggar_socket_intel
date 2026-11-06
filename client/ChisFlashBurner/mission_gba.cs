@@ -234,10 +234,11 @@ namespace ChisFlashBurner
                 showProgress(i, sectorCount);
 
                 // Sector Erase
-                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0x50));
-                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xff));
+
                 rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0x20));
                 rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xd0));
+                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0x50));
+                rom_write((uint)(sa >> 1), BitConverter.GetBytes((UInt16)0xff));				
 
                 byte[] temp = new byte[2];
                 do
@@ -396,6 +397,8 @@ namespace ChisFlashBurner
                 showProgress((int)t, eraseTimeMs);
 
                 byte[] respon = new byte[2];
+				rom_write(0x00, BitConverter.GetBytes((UInt16)0x50));
+				rom_write(0x00, BitConverter.GetBytes((UInt16)0xff));
                 rom_read(0x000000, ref respon);
 
                 printLog(string.Format("..... {0:x4}", BitConverter.ToUInt16(respon, 0)));
@@ -543,7 +546,7 @@ namespace ChisFlashBurner
 				byte[] buff = new byte[bufferWriteBytes];
 				while (buffcount < 16)
 				{
-					rom_write((UInt32)romAddress, new byte[] { 0x41 }); // Page program start
+					rom_write((UInt32)romAddress, BitConverter.GetBytes((UInt16)0x41)); // Page program start
 					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
 					// printLog(string.Format("{0}", string.Join(" ", buff.Select(b => b.ToString("X2")))));
 					rom_write((UInt32)romAddress, buff);
