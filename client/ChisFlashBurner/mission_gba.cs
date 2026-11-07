@@ -543,16 +543,15 @@ namespace ChisFlashBurner
 
                 // 写入
 				int buffcount = 0;
-				byte[] buff = new byte[bufferWriteBytes];
-				while (buffcount < 16)
+				byte[] buff = new byte[2];
+				while (buffcount < 2048)
 				{
-					rom_write((UInt32)romAddress, BitConverter.GetBytes((UInt16)0x41)); // Page program start
-					Array.Copy(sendPack,buffcount*bufferWriteBytes,buff,0,bufferWriteBytes);
+					rom_write((UInt32)romAddress, BitConverter.GetBytes((UInt16)0x40)); // Page program start
+					Array.Copy(sendPack,buffcount*2,buff,0,2);
 					// printLog(string.Format("{0}", string.Join(" ", buff.Select(b => b.ToString("X2")))));
 					rom_write((UInt32)romAddress, buff);
-					buffcount ++;					
-					romAddress += 256;
-					Thread.Sleep(5);
+					buffcount += 2;					
+					romAddress += 2;
 				}
 				
                 //rom_program((UInt32)romAddress, sendPack, (UInt16)bufferWriteBytes);
